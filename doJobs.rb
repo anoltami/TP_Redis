@@ -1,26 +1,24 @@
 require 'redis'
 require 'json'
-require 'mechanize'
+require 'mongo'
+require 'mongoid'
+require 'rubygems'
+require 'nokogiri'   
+require 'open-uri'
+require './job'
+
 
 $r = Redis.new
+$c = Mongo::Connection.new
+Mongoid.database = $c['TP_Redis']
 
-class Job
-	def initialize(task, url)
-		@task = task
-		@url = url
-	end
+class Page
+	include Mongoid::Document
 
-	def task
-		@task
-	end
-
-	def url
-		@url
-	end
-
-	def toJson
-		{task: @task, url: @url}.to_json
-	end
+	field :title			, type: String 		, default: ''
+	field :url				, type: String
+	field :keywords			, type: Array 		, default: ''
+	field :description		, type: String		, default: ''
 end
 
 def getJobsUndo
@@ -31,9 +29,24 @@ end
 
 def doJob job
 	puts "#{job.task} sur #{job.url}"
-	result = Mechanize.new.get(job.url).title
-	puts "Resultat : #{result}"
+
+	webPage = Nokogiri::HTML(open(job.url))
+
+	title = webPage.css('title').text
+	url = job.url
+	keywords = webPage.css("meta[name='keywords']")[0]['content'].split(',')
+	description = webPage.css("meta[name='description']")[0]['content']
+
+	page = Page.new
+	page[:title] = title
+	page[:url] = url
+	page[:keywords] = keywords
+	page[:description] = description
+
+	page.save
 	$r.rpush('jobsDone', job.toJson)
+
+	puts "#{title} traité"
 end
 
 getJobsUndo
