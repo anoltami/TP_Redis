@@ -43,9 +43,14 @@ def doJob job
 	page[:keywords] = keywords
 	page[:description] = description
 
-	page.save
-	$r.rpush('jobsDone', job.toJson)
+	#MONGO DB VERSION
+	#page.save
 
+	#ELASTICSEARCH VERSION
+	data = {title: title, url: url, keywords: keywords, description: description}.to_json
+	`curl -XPOST localhost:9200/tp_redis/pages/1 -d'#{data}'`
+
+	$r.rpush('jobsDone', job.toJson)
 	puts "#{title} traité"
 end
 
