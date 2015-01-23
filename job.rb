@@ -1,3 +1,6 @@
+:task
+:url
+
 class Job
 	def initialize(task, url)
 		@task = task

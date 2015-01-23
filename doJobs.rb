@@ -22,9 +22,20 @@ class Page
 end
 
 def getJobsUndo
-	job = JSON.parse $r.lpop('jobsUnDo')
-	job = Job.new(job['task'], job['url'])
-	doJob job
+	nbJobsToDo = $r.llen 'jobsUnDo'
+
+	i = 0
+	while i < nbJobsToDo
+		statusJobs
+
+		job = JSON.parse $r.lpop('jobsUnDo')
+		job = Job.new(job['task'], job['url'])
+		doJob job
+
+		i += 1
+	end
+
+	statusJobs
 end
 
 def doJob job
@@ -34,7 +45,8 @@ def doJob job
 
 	title = webPage.css('title').text
 	url = job.url
-	keywords = webPage.css("meta[name='keywords']")[0]['content'].split(',')
+	keywords = webPage.css("meta[name='keywords']")[0]['content'].split(',').map(&:lstrip)
+
 	description = webPage.css("meta[name='description']")[0]['content']
 
 	page = Page.new
@@ -48,19 +60,20 @@ def doJob job
 
 	#ELASTICSEARCH VERSION
 	data = {title: title, url: url, keywords: keywords, description: description}.to_json
-	`curl -XPOST localhost:9200/tp_redis/pages/1 -d'#{data}'`
+	`curl -XPOST localhost:9200/tp_redis/pages/ -d'#{data}'`
 
 	$r.rpush('jobsDone', job.toJson)
+	sleep 3
 	puts "#{title} traité"
 end
 
+def statusJobs
+	jobsUndoCount = $r.llen 'jobsUnDo'
+	jobsDoneCount = $r.llen 'jobsDone'
+
+	puts "Nombre de job(s) non traités : #{jobsUndoCount}"
+
+	puts "Nombre de job(s) traités : #{jobsDoneCount}"
+end
+
 getJobsUndo
-
-jobsUndoCount = $r.llen 'jobsUnDo'
-jobsDoneCount = $r.llen 'jobsDone'
-
-puts "Jobs non traités #{jobsUndoCount} :"
-puts $r.lrange('jobsUnDo', 0, -1)
-
-puts "Jobs traités #{jobsDoneCount} :"
-puts $r.lrange('jobsDone', 0, -1)
